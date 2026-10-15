@@ -1,7 +1,7 @@
 # Codebase Summary
 
 Generated on: 2026-10-15
-Based on Repomix compaction snapshot: `repomix-output.xml` (322 files, 607,311 tokens, 2,607,341 chars, dated 2026-10-15)
+Based on Repomix compaction snapshot: `repomix-output.xml` (338 files packed, 5 excluded for security check, 635,941 tokens, 2,728,175 chars, dated 2026-10-15)
 ---
 
 ## 1. Repository Overview
@@ -10,9 +10,9 @@ The `doggo` repository contains the implementation, build configuration, domain 
 
 Following Phases 01–10, the repository contains the Android and shared Compose Multiplatform clients, Linux desktop source/distribution tooling, and the delivered Windows desktop DPAPI provider, isolated build, distributable, MSI artifact, and package-verification harness:
 1. **Root Build & Version Catalog**: Staged Gradle build system, official SHA-256 pinned wrapper, and dependency catalog.
-2. **Shared Kotlin Multiplatform Module (`shared/`)**: Domain models, UI state/actions, identity/authentication contracts, strict sync canonical framing (`strict-v1` and `strict-v2`), `StrictV2Constants`, `StrictV2TodoData`, `StrictV2SyncOp`, `LegacyReceiptStatus`, `LegacyReceiptResult`, checked 64-bit integer arithmetic (`safeMultiply`, `safeSubtract`, `safeAdd`), `StrictSyncV2Digest` binary preimage engine, validation policies, Ktor HTTP transport, Hub auth client, auth session state machine, single-flight refresh coordinator, Android Keystore vault, Room KMP database (version 1), BundledSQLiteDriver, local outbox mutation engine, staged full scan reconciler, fail-closed account leave protocol, shared Compose UI components, accessible light theme tokens (WCAG 2.1 AA verified), and comprehensive unit/instrumented/semantics/vector tests.
-3. **Android Application Module (`androidApp/`)**: Native Android client hosting shared Compose UI, `DoggoApplication` process container, `SessionViewModel` reactive UI state orchestration, `AndroidSyncScheduler` WorkManager scheduling, `DoggoSyncWorker` background sync worker with generation/auth fencing, debug network security configuration with strict loopback cleartext whitelist, backup/extraction security exclusions, release signing task-graph enforcement, and authored instrumented test suites.
-4. **Desktop Application Module (`desktopApp/`)**: Compose Multiplatform JVM app with target-isolated Linux and Windows source sets; shared `CredentialVaultProvider` SPI, fail-closed `PlatformVaultDispatcher`, `SingleInstanceGuard`, `DesktopSyncScheduler`, Linux Secret Service provider, and Windows current-user DPAPI provider.
+2. **Shared Kotlin Multiplatform Module (`shared/`)**: Domain models, UI state/actions, identity/authentication contracts, strict sync canonical framing (`strict-v1` and `strict-v2`), `StrictV2Constants`, `StrictV2TodoData`, `StrictV2SyncOp`, `LegacyReceiptStatus`, `LegacyReceiptResult`, checked 64-bit integer arithmetic (`safeMultiply`, `safeSubtract`, `safeAdd`), `StrictSyncV2Digest` binary preimage engine, `StrictTimeZoneResolver` and `StrictZoneOffsetResult` (`Single`, `Overlap`, `Gap`) with `ZoneRules` platform actuals, validation policies, Ktor HTTP transport, Hub auth client, auth session state machine, single-flight refresh coordinator, Android Keystore vault, Room KMP database (version 1), BundledSQLiteDriver, local outbox mutation engine, staged full scan reconciler, fail-closed account leave protocol, shared Compose UI components, accessible light theme tokens (WCAG 2.1 AA verified), and comprehensive unit/instrumented/semantics/vector tests.
+3. **Android Application Module (`androidApp/`)**: Native Android client hosting shared Compose UI, `DoggoApplication` process container, `SessionViewModel` reactive UI state orchestration, `AndroidSyncScheduler` WorkManager scheduling, `DoggoSyncWorker` background sync worker with generation/auth fencing, `AndroidNotificationAdapter` channel/scheduling candidate, `AndroidReminderCapabilitiesChecker` decoupling notification and exact alarm permissions, non-exported `DoggoAlarmReceiver`, debug network security configuration with strict loopback cleartext whitelist, backup/extraction security exclusions, release signing task-graph enforcement, and authored instrumented test suites.
+4. **Desktop Application Module (`desktopApp/`)**: Compose Multiplatform JVM app with target-isolated Linux and Windows source sets; shared `CredentialVaultProvider` SPI, fail-closed `PlatformVaultDispatcher`, `SingleInstanceGuard`, `DesktopSyncScheduler`, Linux Secret Service provider, Windows current-user DPAPI provider, `DbusLinuxNotificationAdapter` with safe unavailability fallback, and candidate `WindowsNotificationAdapter` with XML escaping and explicit unavailable stub bridge.
 5. **Host Virtualization, Security & Operations Tooling (`scripts/`)**: Headless Xpra display orchestration, Android SDK/JDK environment configuration, emulator management, Hub schema provisioning (`hub-schema-provision.mjs`), live Hub strict smoke harness (`hub-live-smoke.mjs`), release security and integrity auditor (`release-security-check.mjs`), maintenance recovery script (`hub-strict-recovery.js`), device smoke runner (`android-smoke.sh`), loopback sync fault-injection proxy (`debug-fault-proxy.mjs`), Linux/Windows package smoke runners, strict-v2 vector runner (`strict-v2-vector-runner.mjs`), and vector generator (`generate-strict-v2-vectors.mjs`).
 6. **Hub Integration Artifacts (`integration/`)**: Canonical JSON schema definitions for `strict-v1` (`doggo-schema-v1.json`) and `strict-v2` (`doggo-schema-v2.json`), active schema (`doggo-schema.json`), and cryptographic reference test vector fixture (`strict-v2-vectors.json`).
 7. **Automated Verification Harness (`tests/`)**: Automated shell suites validating scripts, Gradle contracts, Kotlin sources, and cryptographic digest vectors.
@@ -38,7 +38,10 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 │       │   │   ├── main-activity.kt        # Single exported Activity hosting DoggoApp and SessionViewModel
 │       │   │   ├── session-view-model.kt   # Retained ViewModel, reactive UI state flows, zero credential retention
 │       │   │   ├── android-sync-scheduler.kt # WorkManager one-shot/periodic scheduler and fail-closed cancelAndAwait gate
-│       │   │   └── doggo-sync-worker.kt    # Background sync worker with wipe, auth, account, and generation fencing
+│       │   │   ├── doggo-sync-worker.kt    # Background sync worker with wipe, auth, account, and generation fencing
+│       │   │   ├── android-notification-adapter.kt # Candidate notification adapter & AlarmManager intent preparation
+│       │   │   ├── android-reminder-capabilities.kt # Probes decoupling POST_NOTIFICATIONS from SCHEDULE_EXACT_ALARM
+│       │   │   └── doggo-alarm-receiver.kt # Non-exported receiver handling offline reminder alarm dispatch
 │       │   └── res/xml/
 │       │       ├── backup_rules.xml        # API <= 30 backup exclusions (databases, sharedprefs, account files)
 │       │       └── data_extraction_rules.xml # API >= 31 cloud and device transfer exclusions
@@ -46,6 +49,8 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 │       │   ├── AndroidManifest.xml     # Debug manifest overriding network security config
 │       │   └── res/xml/
 │       │       └── network_security_config.xml # Debug cleartext whitelist (127.0.0.1, localhost, 10.0.2.2)
+│       ├── test/kotlin/dev/doggo/android/
+│       │   └── android-notification-adapter-test.kt # Unit tests for adapter constants, intent generation, and capabilities
 │       └── androidTest/kotlin/dev/doggo/android/
 │           ├── todo-device-test.kt     # Authored instrumented device tests for ViewModel and store (unexecuted)
 │           └── background-isolation-test.kt # Authored instrumented tests for WorkManager and isolation (unexecuted)
@@ -62,21 +67,25 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 │       │   └── single-instance-guard.kt # File-channel lock on doggo.lock
 │       ├── linuxMain/
 │       │   ├── kotlin/dev/doggo/desktop/linux/
-│       │   │   └── linux-secret-service-vault.kt # Freedesktop Secret Service vault implementation
+│       │   │   ├── linux-secret-service-vault.kt # Freedesktop Secret Service vault implementation
+│       │   │   └── linux-notification-adapter.kt # Freedesktop D-Bus notification candidate with resilient error handling
 │       │   └── resources/META-INF/services/
 │       │       └── dev.doggo.desktop.CredentialVaultProvider # ServiceLoader descriptor for Linux provider
 │       ├── windowsMain/
 │       │   ├── kotlin/dev/doggo/desktop/windows/
-│       │   │   └── windows-dpapi-vault.kt # Current-user DPAPI vault and provider
+│       │   │   ├── windows-dpapi-vault.kt # Current-user DPAPI vault and provider
+│       │   │   └── windows-notification-adapter.kt # Windows toast candidate, XML escaping, tag/group clear, and safe stub
 │       │   └── resources/META-INF/services/
 │       │       └── dev.doggo.desktop.CredentialVaultProvider # Windows ServiceLoader descriptor
 │       ├── test/kotlin/dev/doggo/desktop/
 │       │   ├── platform-vault-dispatcher-test.kt # SPI resolution, zero/duplicate/target validation tests
 │       │   └── desktop-lifecycle-test.kt # Single instance lock, sync scheduling, and build mode tests
 │       ├── linuxTest/kotlin/dev/doggo/desktop/linux/
-│       │   └── linux-secret-service-vault-test.kt # Secret Service status, store, replace, clear tests
+│       │   ├── linux-secret-service-vault-test.kt # Secret Service status, store, replace, clear tests
+│       │   └── linux-notification-adapter-test.kt # Unit tests for capabilities, missing daemon, and missing bus
 │       └── windowsTest/kotlin/dev/doggo/desktop/windows/
-│           └── windows-dpapi-vault-test.kt # DPAPI provider, vault lifecycle, and native round-trip tests
+│           ├── windows-dpapi-vault-test.kt # DPAPI provider, vault lifecycle, and native round-trip tests
+│           └── windows-notification-adapter-test.kt # Unit tests for XML escaping, payload generation, and safe unavailability
 ├── gradle/
 │   ├── libs.versions.toml              # Version catalog (Kotlin 2.1.10, Compose 1.7.3, AGP 8.7.3, Room 2.7.0-alpha12)
 │   ├── verification-metadata.xml       # Gradle dependency checksum verification
@@ -96,7 +105,8 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 │       ├── commonMain/kotlin/dev/doggo/shared/
 │       │   ├── contract/               # Pure domain contracts & validation policies
 │       │   │   ├── strict-sync-v2-contract.kt # Strict-v2 models, checked arithmetic, error enums
-│       │   │   └── strict-sync-v2-digest.kt   # Strict-v2 binary preimage framing and SHA-256
+│       │   │   ├── strict-sync-v2-digest.kt   # Strict-v2 binary preimage framing and SHA-256
+│       │   │   └── strict-timezone-resolver.kt # StrictTimeZoneResolver contract and StrictZoneOffsetResult hierarchy
 │       │   ├── auth/                   # Hub authentication, HTTP client, and session state machine
 │       │   ├── data/                   # Room entities, DAO, Database, and RoomAccountStore
 │       │   │   ├── server-base-entity.kt       # Confirmed server base and permanent compact tombstones
@@ -130,18 +140,23 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 │       │       └── license-notices.kt          # Bundled open-source dependency license viewer
 │       ├── androidMain/kotlin/dev/doggo/shared/
 │       │   ├── auth/                   # Android OkHttp engine and Keystore vault
+│       │   ├── contract/               # Platform actual contracts
+│       │   │   └── strict-timezone-resolver-android.kt # Android ZoneRules platform actual
 │       │   └── data/
 │       │       ├── android-database-builder.kt # BundledSQLiteDriver Room database builder
 │       │       └── android-account-files.kt    # Account directory partitioning and wipe markers
 │       ├── jvmMain/kotlin/dev/doggo/shared/
 │       │   ├── auth/                   # JVM Java HTTP engine
+│       │   ├── contract/               # Platform actual contracts
+│       │   │   └── strict-timezone-resolver-jvm.kt     # JVM ZoneRules platform actual
 │       │   └── data/
 │       │       ├── jvm-database-builder.kt     # Desktop BundledSQLiteDriver Room database builder
 │       │       └── jvm-account-files.kt        # Desktop account directory partitioning and wipe markers
 │       ├── commonTest/kotlin/dev/doggo/shared/
 │       │   ├── contract/               # Contract unit tests (digest, policy, keys)
 │       │   │   ├── strict-v2-digest-vector-test.kt   # Strict-v2 vector fixtures (5 tests)
-│       │   │   └── strict-v2-digest-extended-test.kt # Strict-v2 edge cases & checked overflow (5 tests)
+│       │   │   ├── strict-v2-digest-extended-test.kt # Strict-v2 edge cases & checked overflow (5 tests)
+│       │   │   └── strict-timezone-resolver-test.kt  # 7 timezone & DST transition vectors (gap, overlap, boundaries)
 │       │   ├── auth/                   # Auth client, session, and refresh tests
 │       │   └── sync/                   # Phase 05 sync test suites
 │       │       ├── hub-sync-client-test.kt     # Push, pull, bootstrap, and batch bounds tests
@@ -363,16 +378,44 @@ Following Phases 01–10, the repository contains the Android and shared Compose
 | `windows-dpapi-vault-test.kt` | DPAPI vault status, store/load, replacement/deletion, corrupt payload handling, provider discovery, target isolation, native DPAPI round-trip, and stored-file ACL check on ACL-capable filesystems. | **PASSED** (Windows, 12/12 per Phase 10 evidence; ACL failure paths are not covered) |
 
 Phase 10 implementation is recorded at **100% (2026-10-14)**. The evidence summary reports 25/25 Windows desktop tests and 96/96 shared JVM tests passing (121/121 combined), a verified `Doggo.exe` bundle, and a generated unsigned 100.68 MB MSI. Technical acceptance is blocked pending operator prerequisites for interactive MSI installation, Narrator verification, and strict dependency verification; package metadata inspection is not installed-runtime acceptance.
+### 2.10 Strict Timezone & DST Resolution Subsystem (`shared/`)
+
+| Component File | Primary Types & Functions | Architectural Role |
+|---|---|---|
+| `strict-timezone-resolver.kt` | `StrictTimeZoneResolver`, `StrictZoneOffsetResult` (`Single`, `Overlap`, `Gap`) | Interface contract defining strict local date/time offset resolution, instant resolution, calendar day start, next day boundary calculation, and zone validation. |
+| `strict-timezone-resolver-jvm.kt` | `getStrictTimeZoneResolver()` | JVM platform actual binding delegating to standard `java.time.zone.ZoneRules` (Java 8+). |
+| `strict-timezone-resolver-android.kt` | `getStrictTimeZoneResolver()` | Android platform actual binding delegating to standard `java.time.zone.ZoneRules` (API 26+). |
+
+| Test Suite File | Scope & Tested Invariants | Status |
+|---|---|---|
+| `strict-timezone-resolver-test.kt` | 7 DST and boundary vectors: NY Spring gap (0 valid offsets, instant throws `IllegalArgumentException`), NY Fall overlap (2 offsets separated by 3600s, explicit offset required), standard time, 23h spring boundary, 25h fall boundary, zone/bounds validation, midnight gap transition. | **RECORDED PASSED** (Recorded in Phase 02 QA report, 7/7 JVM tests under `--dependency-verification=off`; API 26 device pending SDK) |
+
+### 2.11 Native Candidate Notification Adapters (`androidApp/` & `desktopApp/`)
+
+| Component File | Primary Types & Functions | Architectural Role |
+|---|---|---|
+| `android-notification-adapter.kt` | `AndroidNotificationAdapter` | Android notification channel (`doggo_reminders`) and AlarmManager intent factory (`setExactAndAllowWhileIdle`). |
+| `android-reminder-capabilities.kt` | `AndroidReminderCapabilitiesChecker` | Capability checker decoupling runtime `POST_NOTIFICATIONS` from `SCHEDULE_EXACT_ALARM` permissions. |
+| `doggo-alarm-receiver.kt` | `DoggoAlarmReceiver` | Non-exported `BroadcastReceiver` (`android:exported="false"`) handling offline alarm delivery with extras validation. |
+| `linux-notification-adapter.kt` | `DbusLinuxNotificationAdapter`, `SessionBusNotificationTransport` | Freedesktop `/org/freedesktop/Notifications` D-Bus adapter mapping missing daemon (`ServiceUnknown`) to `LinuxNotificationStatus.Unavailable`. |
+| `windows-notification-adapter.kt` | `WindowsNotificationAdapter`, `WindowsToastBridge`, `JnaWindowsToastBridge` | Windows toast candidate configuring AUMID `dev.doggo.desktop` and XML escaping; native COM/WinRT bridge is **unimplemented** (`isAvailable() = false`, returns `Unavailable`). Native implementation and MSI runtime acceptance pending Phase 09. |
+
+| Test Suite File | Scope & Tested Invariants | Status |
+|---|---|---|
+| `android-notification-adapter-test.kt` | Action and extra constants, intent extras assembly, capabilities data model. | **SOURCE INSPECTED** (Host SDK pending; unexecuted on Android runner) |
+| `linux-notification-adapter-test.kt` | Capabilities query, missing D-Bus daemon graceful unavailability, missing session bus handling, environment probe. | **RECORDED PASSED** (Recorded in Phase 02 QA report, 4/4 tests under `--dependency-verification=off`) |
+| `windows-notification-adapter-test.kt` | XML attribute/entity escaping, toast XML construction, explicit bridge unavailability stub test. | **RECORDED PASSED** (Recorded in Phase 02 code review, 3/3 tests under `--dependency-verification=off`; candidate stub only) |
+
 ---
 
-## 3. Repomix Compaction Metrics (Dated Generation Snapshot: 2026-10-14)
+## 3. Repomix Compaction Metrics (Dated Generation Snapshot: 2026-10-15)
 
-- **Compaction Artifact:** Generated on 2026-10-14 for analysis; the XML was not retained in the repository.
-- **Total Files Packed:** 279 files
-- **Total Character Count:** 2,320,587 characters
-- **Total Token Count:** 533,057 tokens
+- **Compaction Artifact:** Generated on 2026-10-15 at `repomix-output.xml` in repository root.
+- **Total Files Packed:** 338 files
+- **Total Character Count:** 2,728,175 characters
+- **Total Token Count:** 635,941 tokens
 - **Security Check:** Repomix security scanner flagged 5 suspicious files that were excluded from the compaction output by default filter heuristics: `docs/security-and-recovery.md`, `plans/reports/code-reviewer-261014-1624-phase-08-release-operations-cycle2.md`, `plans/reports/code-reviewer-261014-1638-phase-08-release-operations-cycle3.md`, `plans/reports/docs-manager-261014-1643-phase-08-docs-verification.md`, and `shared/src/commonTest/kotlin/dev/doggo/shared/contract/endpoint-policy-test.kt`. These exclusions represent heuristic scanner flags and are not an affirmative clean security adjudication of those files.
-- **Snapshot Scope:** These counts describe a single 2026-10-14 Repomix generation. The XML snapshot is not retained, and self-report metrics may not appear identically in its copy of this file.
+- **Snapshot Scope:** These counts describe a single 2026-10-15 Repomix generation.
 ---
 
 ## 4. Current State & Invariants
@@ -420,3 +463,7 @@ Phase 10 implementation is recorded at **100% (2026-10-14)**. The evidence summa
 31. **Windows MSI Provenance**: The recorded MSI is unsigned; its hash/metadata inspection does not establish Authenticode trust or successful interactive installation.
 32. **Windows Acceptance Status**: Phase 10 implementation is recorded at 100% (2026-10-14), but technical acceptance is blocked pending operator prerequisites for interactive MSI installation, Narrator verification, and strict dependency verification. Separately, ACL enforcement is not fail-closed and clean-user runtime/sync plus uninstall/reinstall evidence remain open. The seven Windows PNGs are design mockups; they are not live application captures.
 33. **Phase 01 Temporal Model & Strict Transition Frozen (Gate G1 Approved)**: Contract, binary digest framing, and transition design frozen on 2026-10-15 ([Gate G1 review approved](../plans/reports/code-review-261015-0951-phase-01-freeze-temporal-model.md)). Strict-v2 wire format introduces 12 fields (16 total columns) with canonical JSON schema fingerprints `3361a80f...` (v1) and `5f539551...` (v2). Binary SHA-256 preimages and checked 64-bit integer arithmetic (`safeMultiply`, `safeSubtract`, `safeAdd`) pass across recorded test suites in Kotlin (:shared:jvmTest, 10 tests across 2 files), Rust (`strong_sync_v2_tests`, 1 test / 20 vector cases), and Node.js (`strict-v2-vector-runner.mjs`, 20 vectors: 9 valid + 11 boundary/overflow rejections). Wire validation rejects non-null interval when `reminderCount == 1` and requires interval >= 15m for repeating count 2..10. *Planned design for subsequent phases (Phases 03–06, pending implementation)*: In-place Hub migration will use app-scoped admin coordination lease, request permit drain, and journaled schema update; Room v1->v2 evolution will default migrated records to null deadlines and disabled rules; unprovable legacy outbox operations will enter `UNKNOWN_SUPERSEDED` for explicit review; safe v1 intentions will rebase only changed fields over remote v2 base.
+34. **Strict DST Gap and Overlap Resolution**: `StrictTimeZoneResolver` rejects non-existent spring-forward gap instants (`IllegalArgumentException`), requires explicit offset disambiguation for fall-back overlap hours, and calculates calendar day boundaries with calendar arithmetic (23h/25h), never fixed +24h additions. (Reported 7/7 tests passing in `:shared:jvmTest` under `--dependency-verification=off`).
+35. **Non-Exported Android Alarm Receiver**: `DoggoAlarmReceiver` declares `android:exported="false"` in `AndroidManifest.xml` and validates `taskId`, `scheduleToken`, `notificationId`, and `title` before dispatching offline notifications via `AndroidNotificationAdapter`.
+36. **Decoupled Mobile Reminder Capabilities**: `AndroidReminderCapabilitiesChecker` decouples runtime `POST_NOTIFICATIONS` permission from `SCHEDULE_EXACT_ALARM` exact alarm permission (`AlarmManager.canScheduleExactAlarms()` on API 31+).
+37. **Safe Desktop Notification Absence & Windows Stub**: `DbusLinuxNotificationAdapter` maps `DBusExecutionException` / `ServiceUnknown` to `LinuxNotificationStatus.Unavailable` without crashing; `WindowsToastBridge` explicitly returns `isAvailable() = false` and `WindowsNotificationStatus.Unavailable` pending native WinRT/COM implementation and Windows testbed in Phase 09.

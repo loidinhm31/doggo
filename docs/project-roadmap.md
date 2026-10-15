@@ -1,11 +1,11 @@
 # Doggo Project Roadmap
 
-**Current Status:** In Progress — foundational strict-v1 multiplatform delivered; Phase 01 of Deadlines, Reminders & Strict Upgrades DONE (Gate G1 passed)
+**Current Status:** In Progress — foundational strict-v1 multiplatform delivered; Phase 01 DONE (Gate G1 passed); Phase 02 logic/contracts DELIVERED (Gate G2 physical delivery BLOCKED on host prerequisites)
 **Last Updated:** 2026-10-15
 **Target Plan:** [plans/261015-0752-task-deadlines-reminders-strict-upgrades/plan.md](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/plan.md) (Task Deadlines, Reminders & Strict Upgrades)
 **Foundational Plan:** [plans/261013-1540-doggo-glean-hub-reuse/plan.md](../plans/261013-1540-doggo-glean-hub-reuse/plan.md) (Strict-v1 Hub Reuse Baseline — 100% Implementation Delivered)
 **Historical Plan:** [plans/261013-0914-doggo-compose-todos/plan.md](../plans/261013-0914-doggo-compose-todos/plan.md) (Superseded)
-**Overall Progress:** Foundational baseline: 100% planned-effort implementation delivered (148h / 148h allocated; technical and operator acceptance gates remain open). Evolution plan (Deadlines & Reminders): 6.8% planned-effort progress (16h / 236h, Phase 01 DONE, Gate G1 passed; Phases 02–12 pending).
+**Overall Progress:** Foundational baseline: 100% planned-effort implementation delivered (148h / 148h allocated; technical and operator acceptance gates remain open). Evolution plan (Deadlines & Reminders): 13.6% planned-effort progress (32h / 236h, Phase 01 DONE, Phase 02 logic/contracts DELIVERED, Gate G2 physical delivery BLOCKED; next pending: Phase 03 Hub migration & Phase 05 Shared Room migration).
 
 ---
 
@@ -50,7 +50,7 @@ Phase 01 of the Task Deadlines, Reminders, and Strict-Contract Upgrades plan (`p
 | Phase | Description | Group | Effort | Status | Completed Date | Progress |
 |:---|:---|:---:|---:|:---:|:---:|---:|
 | **01** | [Freeze temporal model and strict transition](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-01-freeze-contract-and-transition-design.md) | Contract | 16h | **DONE** | 2026-10-15 | 100% (G1 passed) |
-| **02** | [Prove native notifications and strict DST](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-02-prove-native-delivery-and-dst.md) | Native | 16h | Pending | - | 0% |
+| **02** | [Prove native notifications and strict DST](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-02-prove-native-delivery-and-dst.md) | Native | 16h | **DELIVERED (Contracts/Logic)\*** | 2026-10-15 | Partial (G2 BLOCKED) |
 | **03** | [Hub v2 admission, fencing and migration](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-03-hub-versioned-contract-and-migration.md) | Backend | 32h | Pending | - | 0% |
 | **04** | [Hub admin UI and API-only upgrade script](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-04-hub-admin-ui-and-upgrade-script.md) | Admin/Ops | 12h | Pending | - | 0% |
 | **05** | [Shared model and explicit Room1→2](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-05-shared-model-and-room-migration.md) | Database | 20h | Pending | - | 0% |
@@ -61,7 +61,9 @@ Phase 01 of the Task Deadlines, Reminders, and Strict-Contract Upgrades plan (`p
 | **10** | [Shared editor, list and local settings](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-10-compose-deadline-editor-list-and-settings.md) | UI | 20h | Pending | - | 0% |
 | **11** | [Adversarial and platform acceptance](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-11-adversarial-integration-and-platform-acceptance.md) | QA | 20h | Pending | - | 0% |
 | **12** | [Coordinated cutover, recovery and release](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-12-coordinated-cutover-runbook-and-release.md) | Release | 12h | Pending | - | 0% |
-| **Total** | | | **236h** | | | **6.8% (16h/236h)** |
+| **Total** | | | **236h** | | | **13.6% credited (32h/236h; G2 BLOCKED)** |
+
+*\*Phase 02 delivered strict timezone/DST contracts and platform actuals (115/115 passing JVM tests across 6 vectors + 1 midnight gap vector; 116 tests in clean rerun), candidate native notification adapters for Android, Linux D-Bus, and Windows WinRT/COM, hardened Android manifest, and repaired Linux dependency lockfile. Gate G2 physical native delivery remains formally BLOCKED due to absent host prerequisites (Android SDK/device, active desktop notification daemon in user session, Windows runtime/MSI tools); physical verification scheduled for Phase 08 (Android) and Phase 09 (Linux/Windows).*
 
 ---
 
@@ -167,9 +169,32 @@ All phase allocations are marked delivered (148h/148h planned-effort roll-up, no
     - Architecture & Specs: `docs/system-architecture.md`, `docs/local-storage-and-sync.md`, `docs/hub-schema-integration.md`.
   - *Note on Gate G1:* 108/108 KMP JVM tests (under `--dependency-verification=off`), 20/20 Node vector checks, 37/37 Rust unit/route tests (1 live-Mongo test ignored), and 18/18 offline Hub fixture smoke assertions pass per QA validation report (`plans/reports/qa-261015-0938-phase-01-freeze-temporal-model.md`). Bit-level digest parity verified across Kotlin, Rust, and Node.js. Unlocks downstream phases 02 (native alarm proof), 03 (backend migration), 05 (Room migration), and 06 (client replay).
 
+- **Phase 02 (DELIVERED 2026-10-15; Gate G2 physical delivery BLOCKED on host prerequisites):** Prove native notifications and strict DST resolution (16h effort credited, logic/contracts delivered, physical delivery pending).
+  - **Key Deliverables:**
+    - Shared Strict Timezone & DST Resolver: `shared/src/commonMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver.kt`, `shared/src/jvmMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-jvm.kt`, `shared/src/androidMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-android.kt` (sealed `StrictZoneOffsetResult` hierarchy: `Single`, `Overlap`, `Gap`; standard `java.time.zone.ZoneRules` actuals on JVM and Android API 26+; strict gap rejection, overlap disambiguation, 23h/25h calendar day math, and midnight transitions).
+    - Android Candidate Adapter & Capabilities: `androidApp/src/main/kotlin/dev/doggo/android/android-notification-adapter.kt`, `androidApp/src/main/kotlin/dev/doggo/android/android-reminder-capabilities.kt`, `androidApp/src/main/kotlin/dev/doggo/android/doggo-alarm-receiver.kt`, `androidApp/src/main/AndroidManifest.xml` (decoupled notification permission and exact-alarm timing access via `SCHEDULE_EXACT_ALARM` and `POST_NOTIFICATIONS`; unexported alarm receiver).
+    - Linux Desktop D-Bus Candidate Adapter: `desktopApp/src/linuxMain/kotlin/dev/doggo/desktop/linux/linux-notification-adapter.kt` (session bus D-Bus transport via `/org/freedesktop/Notifications`, safe fallback on missing daemon mapping `ServiceUnknown` to `Unavailable` without crash).
+    - Windows Desktop WinRT/COM Candidate Adapter: `desktopApp/src/windowsMain/kotlin/dev/doggo/desktop/windows/windows-notification-adapter.kt` (candidate adapter with stable AUMID `dev.doggo.desktop`, XML builder with attribute escaping, tag/group clearance API, and fail-safe unproven `Unavailable` status stub; native COM/WinRT implementation and installed-runtime proof remain pending Phase 09 Windows testbed).
+    - Dependency Locking: Reconciled `desktopApp/gradle-linux.lockfile` eliminating stale JNA entries while preserving cross-target isolation.
+    - Acceptance Specifications: Updated `docs/android-acceptance.md`, `docs/linux-acceptance.md`, and `docs/windows-acceptance.md` distinguishing static inspection from executed tests.
+    - Unit & Integration Test Suites: `shared/src/commonTest/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-test.kt` (7 test vectors passing: NY spring gap, fall overlap, unambiguous, 23h, 25h, validation, and midnight gap), `desktopApp/src/linuxTest/kotlin/dev/doggo/desktop/linux/linux-notification-adapter-test.kt` (4 tests passing), `desktopApp/src/windowsTest/kotlin/dev/doggo/desktop/windows/windows-notification-adapter-test.kt` (safe unavailability test source-inspected/added; unexecuted on Linux due to target isolation).
+  - *Note on Gate G2:* 147/147 Gradle tests pass under `--dependency-verification=off` (115 :shared:jvmTest + 32 :desktopApp:test; 116 JVM tests on clean rerun), 18/18 fixture smoke assertions pass, and 6/6 source security checks pass. Code review scored 7.5/10 APPROVED. Physical native delivery across all three target OSs remains formally BLOCKED due to absent host prerequisites (Android SDK/device, active Linux desktop notification daemon, Windows runtime). Gate G2 physical verification is scheduled for Phase 08 (Android testbed) and Phase 09 (Linux/Windows testbeds). Gate G2 continues to block broad Compose UI (Phase 10) and final native adapters. Downstream Phase 03 (Hub migration) and Phase 05 (Shared Room migration) proceed independently under Gate G1 clearance.
 ---
 
 ## 4. Changelog
+### [Phase 02] — 2026-10-15: Strict Timezone Resolver and Native Notification Adapters (Plan 261015-0752)
+#### Completed
+- **Phase 02 Strict DST & Candidate Native Adapters (Contracts/Logic Delivered)**:
+  - Implemented `StrictTimeZoneResolver` contract and `StrictZoneOffsetResult` (`Single`, `Overlap`, `Gap`) in `:shared` backed by standard `java.time.zone.ZoneRules` on JVM and Android API 26+.
+  - Verified 7 timezone test vectors in `StrictTimeZoneResolverTest` covering New York spring gap rejection (`2026-03-08 02:30`), fall overlap disambiguation (`2026-11-01 01:30` with distinct 3,600,000 ms separation between EDT/EST), standard unambiguous instant resolution, 23-hour/25-hour calendar-day boundaries, leap-year validation, and midnight gap transitions.
+  - Implemented Android candidate notification adapter (`AndroidNotificationAdapter`), capabilities checker (`AndroidReminderCapabilitiesChecker`), and unexported alarm receiver (`DoggoAlarmReceiver`) in `:androidApp`. Hardened manifest with `SCHEDULE_EXACT_ALARM`, `POST_NOTIFICATIONS`.
+  - Implemented Linux D-Bus candidate adapter (`DbusLinuxNotificationAdapter`) in `:desktopApp` (`linuxMain`) with graceful fallback on missing daemon (`ServiceUnknown` -> `Unavailable`).
+  - Implemented Windows candidate adapter (`WindowsNotificationAdapter`, `WindowsToastBridge`) in `:desktopApp` (`windowsMain`) with stable AUMID `dev.doggo.desktop`, XML attribute escaping, tag/group clearance API, and safe unproven `Unavailable` stub; native COM/WinRT implementation and installed-runtime proof remain pending Phase 09 Windows testbed.
+  - Reconciled `desktopApp/gradle-linux.lockfile` eliminating stale JNA entries without breaking dependency locking.
+  - Updated acceptance specifications in `docs/android-acceptance.md`, `docs/linux-acceptance.md`, and `docs/windows-acceptance.md` labeling unexecuted platform tests.
+  - Validated with 147/147 passing Gradle tests under `--dependency-verification=off` (115 :shared:jvmTest + 32 :desktopApp:test; 116 JVM tests in clean rerun), 18/18 fixture smoke assertions, and 6/6 source security checks. Approved in code review (score 7.5/10).
+  - Gate G2 physical native delivery formally recorded as BLOCKED on missing host prerequisites (Android SDK/device, active Linux desktop notification daemon, Windows runtime); physical execution scheduled for Phase 08 (Android) and Phase 09 (Linux/Windows). Downstream Phase 03 (Hub migration) and Phase 05 (Shared Room migration) proceed independently under Gate G1 clearance. Gate G2 continues to block broad Compose UI (Phase 10) and final native adapters.
+
 
 ### [Phase 01] — 2026-10-15: Freeze Temporal Model and Strict Transition (Plan 261015-0752)
 #### Completed

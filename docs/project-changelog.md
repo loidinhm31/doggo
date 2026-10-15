@@ -3,6 +3,37 @@
 All notable changes to the Doggo project are documented in this file, organized chronologically by implementation phase.
 
 ---
+## [Phase 02] - 2026-10-15: Native Delivery & Strict DST Resolution (Gate G2 Blocked on Host Prerequisites)
+
+### Added
+- Strict timezone and DST resolution contract in `:shared`:
+  - `shared/src/commonMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver.kt`: `StrictTimeZoneResolver` interface and `StrictZoneOffsetResult` sealed hierarchy (`Single`, `Overlap`, `Gap`). Rejects non-existent spring-forward gap instants (`IllegalArgumentException`), requires explicit offset disambiguation for fall-back overlap hours, and calculates calendar day boundaries with calendar arithmetic (23h/25h).
+  - Platform actual bindings delegating to standard `java.time.zone.ZoneRules`: `shared/src/jvmMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-jvm.kt` and `shared/src/androidMain/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-android.kt`.
+  - Comprehensive vector test suite: `shared/src/commonTest/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-test.kt` exercising 7 test vectors (NY spring gap, NY fall overlap, standard unambiguous time, 23h and 25h calendar day boundaries, input bounds validation, and midnight gap transitions).
+- Candidate mobile notification adapter & receiver in `:androidApp`:
+  - `androidApp/src/main/kotlin/dev/doggo/android/android-notification-adapter.kt`: Notification channel setup (`doggo_reminders`), intent preparation, and AlarmManager exact alarm scheduling (`setExactAndAllowWhileIdle`).
+  - `androidApp/src/main/kotlin/dev/doggo/android/android-reminder-capabilities.kt`: Independent capability probes decoupling `POST_NOTIFICATIONS` (API 33+) from `SCHEDULE_EXACT_ALARM` (`AlarmManager.canScheduleExactAlarms()` on API 31+).
+  - `androidApp/src/main/kotlin/dev/doggo/android/doggo-alarm-receiver.kt`: Non-exported `BroadcastReceiver` (`android:exported="false"`) handling offline alarm dispatch with strict intent extras validation.
+  - `androidApp/src/test/kotlin/dev/doggo/android/android-notification-adapter-test.kt`: Unit tests verifying action and extra constants, intent generation, and capabilities data classes.
+- Candidate desktop notification adapters in `:desktopApp`:
+  - `desktopApp/src/linuxMain/kotlin/dev/doggo/desktop/linux/linux-notification-adapter.kt`: Linux D-Bus candidate communicating with `/org/freedesktop/Notifications`, mapping missing daemons (`ServiceUnknown`) and absent session bus to `LinuxNotificationStatus.Unavailable` without crashes.
+  - `desktopApp/src/linuxTest/kotlin/dev/doggo/desktop/linux/linux-notification-adapter-test.kt`: 4 unit tests verifying missing daemon handling, missing session handling, safe host probing, and capabilities under mock proxy.
+  - `desktopApp/src/windowsMain/kotlin/dev/doggo/desktop/windows/windows-notification-adapter.kt`: Windows toast candidate configuring AUMID `dev.doggo.desktop`, XML attribute/entity escaping, and tag/group toast clearance. Includes `JnaWindowsToastBridge` explicitly returning `isAvailable() = false` and `WindowsNotificationStatus.Unavailable` pending native WinRT/COM implementation and Windows testbed in Phase 09.
+  - `desktopApp/src/windowsTest/kotlin/dev/doggo/desktop/windows/windows-notification-adapter-test.kt`: Unit tests verifying XML escaping, XML payload construction, and explicit bridge unavailability.
+
+### Changed
+- `androidApp/src/main/AndroidManifest.xml`: Added `SCHEDULE_EXACT_ALARM` and `POST_NOTIFICATIONS` permissions, and declared non-exported `DoggoAlarmReceiver` (`android:exported="false"`).
+- `desktopApp/gradle-linux.lockfile`: Reconciled locked artifacts to remove stale JNA dependencies while maintaining Linux target dependency isolation.
+- `docs/android-acceptance.md`: Updated Section 4.2 with Phase 02 mobile acceptance matrix, recording candidate adapter and receiver verification status as unexecuted pending host Android SDK/device in Phase 08.
+- `docs/linux-acceptance.md`: Updated Section 4.2 with Phase 02 Linux desktop acceptance matrix, recording candidate adapter status and missing daemon probe on workstation session.
+- `docs/windows-acceptance.md`: Updated Section 4.2 with Phase 02 Windows desktop acceptance matrix, recording candidate adapter status as source-inspected/unexecuted pending Windows testbed in Phase 09.
+- `docs/system-architecture.md`: Updated status to reflect Phase 02 deliverables and Gate G2 blocked status; added Section 4.10 (Native Notification Candidates & Strict Timezone Architecture), Invariants 29–32, and Section 6.5.
+
+### Verification and Gate G2 Status
+- Reported automated test runs pass 147 tests across `:shared:jvmTest` (115 tests, including 7 strict timezone vectors) and `:desktopApp:test` (32 tests, including 4 Linux D-Bus tests) under `--dependency-verification=off` (recorded in Phase 02 QA and Code Review reports).
+- Strict root dependency verification (`./gradlew without --dependency-verification=off`) remains failing until platform lockfile hashes are unified.
+- Gate G2 physical native delivery is formally recorded as **BLOCKED** per specification due to missing implementation and workstation prerequisites: Android SDK/device absent (Phase 08), active desktop notification daemon absent on user D-Bus session (Phase 09), and Windows native WinRT/COM implementation and host runtime absent (Phase 09).
+---
 ## [Phase 01] - 2026-10-15: Freeze Temporal Model and Strict Transition (Gate G1 Frozen)
 
 ### Added

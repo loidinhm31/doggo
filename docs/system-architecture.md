@@ -1,8 +1,8 @@
 # Doggo System Architecture
 
-Last Updated: 2026-10-14
-Phase: Phases 01–10 implementation delivered; Phase 10 recorded at 100% (2026-10-14), with technical acceptance blocked pending operator prerequisites for interactive MSI installation, Narrator verification, and strict dependency verification; earlier-phase operator/runtime acceptance also remains pending
-Related Docs: [Project Roadmap](./project-roadmap.md) · [Codebase Summary](./codebase-summary.md) · [Deployment Guide](./deployment-guide.md) · [Windows Desktop Guide](./windows-desktop-guide.md) · [Windows Acceptance](./windows-acceptance.md) · [Android Acceptance](./android-acceptance.md) · [Headless Android Setup](./headless-android-setup.md) · [Host Tooling Evidence](./host-tooling-evidence.md) · [Local Storage & Sync](./local-storage-and-sync.md) · [Sync Acceptance](./sync-acceptance.md) · [Hub Schema Integration](./hub-schema-integration.md) · [Hub Compatibility Acceptance](./hub-compatibility-acceptance.md) · [Auth Acceptance](./auth-acceptance.md) · [Authentication & Credentials](./authentication-and-credentials.md)
+Last Updated: 2026-10-15
+Phase: Phase 01 frozen (Gate G1 approved); Phase 02 strict timezone/DST contracts and platform candidate adapters delivered, with Gate G2 native delivery formally blocked pending platform testbed environments (Android SDK/device, active Linux notification daemon, Windows host runtime); earlier-phase operator/runtime acceptance also remains pending
+Related Docs: [Project Roadmap](./project-roadmap.md) · [Codebase Summary](./codebase-summary.md) · [Deployment Guide](./deployment-guide.md) · [Windows Desktop Guide](./windows-desktop-guide.md) · [Windows Acceptance](./windows-acceptance.md) · [Linux Acceptance](./linux-acceptance.md) · [Android Acceptance](./android-acceptance.md) · [Headless Android Setup](./headless-android-setup.md) · [Host Tooling Evidence](./host-tooling-evidence.md) · [Local Storage & Sync](./local-storage-and-sync.md) · [Sync Acceptance](./sync-acceptance.md) · [Hub Schema Integration](./hub-schema-integration.md) · [Hub Compatibility Acceptance](./hub-compatibility-acceptance.md) · [Auth Acceptance](./auth-acceptance.md) · [Authentication & Credentials](./authentication-and-credentials.md)
 
 ---
 
@@ -302,6 +302,30 @@ On Windows, `WindowsDpapiVault` calls JNA-backed `CryptProtectData` and `CryptUn
 
 The Windows `META-INF/services/dev.doggo.desktop.CredentialVaultProvider` descriptor registers the Windows provider. The distributable contains a bundled Java runtime and `Doggo.exe`; the MSI is configured for per-user installation. `scripts/windows-package-smoke.ps1` inspects packaged classes/provider registration, checks Linux D-Bus exclusion, hashes the MSI, reports Authenticode status, and reads MSI properties using Windows Installer COM. Phase 10 implementation is recorded at **100% (2026-10-14)**; technical acceptance remains blocked pending operator prerequisites for interactive MSI installation, Narrator verification, and strict dependency verification. Separately, ACL enforcement is not guaranteed by the current source, and clean-user runtime/sync plus uninstall/reinstall evidence remain open. The evidence report records a generated unsigned MSI, not an interactive installation.
 
+### 4.10 Native Notification Candidates & Strict Timezone Architecture (Phase 02)
+
+1. **Strict Timezone & DST Resolution Engine (`shared`)**:
+   - `StrictTimeZoneResolver` domain contract and `StrictZoneOffsetResult` sealed hierarchy (`Single`, `Overlap`, `Gap`) enforce explicit temporal boundaries across transitions.
+   - Platform actuals in `jvmMain` and `androidMain` bind to standard `java.time.zone.ZoneRules` (built into Java 8+ and Android API 26+).
+   - **DST Spring-Forward Gap**: A clock jump skipping local time has zero valid offsets; `resolveOffset()` returns `Gap(gapBeforeOffsetSeconds, gapAfterOffsetSeconds)`. `resolveInstant()` throws `IllegalArgumentException` fail-closed.
+   - **DST Fall-Back Overlap**: A repeated clock hour has two valid offsets; `resolveOffset()` returns `Overlap(earlierOffsetSeconds, earlierEpochMs, laterOffsetSeconds, laterEpochMs)`. `resolveInstant()` requires explicit disambiguation via `chosenOffsetSeconds` matching one of the two valid offsets, throwing `IllegalArgumentException` on missing or unaligned offsets.
+   - **Calendar Day Arithmetic**: `computeNextCalendarDayStartEpochMs` performs calendar date arithmetic (yielding 23h on spring-forward and 25h on fall-back day boundaries), never fixed instant +24h addition.
+   - **Input Validation**: Zone IDs are validated against platform tzdb; calendar date/time bounds and leap-year rules are strictly enforced.
+
+2. **Mobile Notification Candidate (`androidApp`)**:
+   - `AndroidNotificationAdapter` manages the `doggo_reminders` notification channel (`IMPORTANCE_HIGH`, lights, vibration) and intent creation for AlarmManager delivery.
+   - `AndroidReminderCapabilitiesChecker` decouples runtime notification permission (`POST_NOTIFICATIONS` on API 33+) from exact alarm scheduling capability (`AlarmManager.canScheduleExactAlarms()` on API 31+).
+   - `DoggoAlarmReceiver`: Non-exported (`android:exported="false"`) BroadcastReceiver receiving `ACTION_DELIVER_REMINDER`, validating required intent extras (`taskId`, `scheduleToken`, `notificationId`, `title`) before posting offline notifications. Note: PendingIntent deep link integration and API 26 device execution remain pending Phase 08.
+
+3. **Linux Desktop Notification Candidate (`desktopApp/src/linuxMain`)**:
+   - `DbusLinuxNotificationAdapter` communicates with `/org/freedesktop/Notifications` on the D-Bus session bus via `SessionBusNotificationTransport`.
+   - Safe error handling: Catches `DBusExecutionException` (`org.freedesktop.DBus.Error.ServiceUnknown`) or missing session bus and maps to `LinuxNotificationStatus.Unavailable` without process crashes.
+   - Reconciled dependency locking in `desktopApp/gradle-linux.lockfile`. Desktop bubble delivery requires an active desktop notification daemon in Phase 09.
+
+4. **Windows Desktop Notification Candidate (`desktopApp/src/windowsMain`)**:
+   - `WindowsNotificationAdapter` configures stable AUMID `dev.doggo.desktop` and default group `doggo_reminders`.
+   - `escapeXml()` sanitizes XML attribute and entity characters (`&`, `<`, `>`, `"`, `'`) for toast templates.
+   - **Status: Unimplemented / Candidate**: `JnaWindowsToastBridge` explicitly returns `isAvailable() = false` and `WindowsNotificationStatus.Unavailable` for all operations. Real WinRT/COM toast delivery and MSI AUMID history removal remain outstanding implementation and runtime acceptance work in Phase 09.
 ---
 
 ## 5. Security & Isolation Invariants
@@ -335,10 +359,15 @@ The Windows `META-INF/services/dev.doggo.desktop.CredentialVaultProvider` descri
 26. **Windows DPAPI Scope**: Windows credentials use DPAPI user scope; machine-wide protection and plaintext token fallback are not used. JSON credentials are written as one encrypted bundle and atomically replaced.
 27. **Windows ACL Caveat**: The vault attempts to apply an owner ACL, but the current implementation suppresses ACL-view/owner errors; restricted ACLs are not guaranteed when that operation fails or is unavailable.
 28. **Windows MSI Release Status**: The recorded MSI is unsigned and has only been generated and inspected. Authenticode signing and interactive installer/runtime acceptance are separate release gates.
+29. **Non-Exported Alarm Receiver Isolation**: `DoggoAlarmReceiver` strictly specifies `android:exported="false"` in `AndroidManifest.xml` preventing inter-app intent injection or unauthorized alarm notification spoofing; intent handling validates all required extras before posting.
+30. **Decoupled Mobile Notification & Timing Permissions**: Notification posting authorization (`POST_NOTIFICATIONS`) and exact-alarm scheduling permission (`SCHEDULE_EXACT_ALARM`) are checked independently, preventing silent alarm scheduling failures or unauthorized notifications.
+31. **Explicit Desktop Notification Unavailability**: Desktop Linux D-Bus and Windows toast adapters return explicit `Unavailable` statuses when host daemons (`ServiceUnknown`) or native bridges (WinRT/COM) are not present, preventing unhandled runtime exceptions or false-positive success reporting.
+32. **Fail-Closed DST Ambiguity Resolution**: Timezone and DST calculations reject ambiguous overlaps and non-existent gaps with explicit exceptions rather than silently shifting or rounding to erroneous local instants.
 
-## 6. Deadlines, reminders, and strict upgrade design — Phase 01 Frozen (Gate G1 Approved)
 
-Phase 01 Contract and Transition Design frozen on 2026-10-15 ([Gate G1 review approved](../plans/reports/code-review-261015-0951-phase-01-freeze-temporal-model.md)). Binary preimages and checked 64-bit integer arithmetic pass across recorded test suites in Kotlin, Rust, and Node.js. Execution plan: [phased plan](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/plan.md). Subsequent implementation phases 02–12 remain pending.
+## 6. Deadlines, Reminders & Strict Upgrade Design (Phases 01–02 Status)
+
+Phase 01 Contract and Transition Design frozen on 2026-10-15 (Gate G1 approved). Phase 02 logic contracts and platform candidate adapters delivered on 2026-10-15; Gate G2 physical native delivery formally recorded as BLOCKED pending missing host prerequisites (Android SDK/device, active Linux notification daemon, Windows host runtime). Subsequent implementation phases 03–12 remain pending.
 
 ### 6.1 Wire Schema & Fingerprints
 - Target sync protocol: `strict-v2`. Full replacement payloads, absent fields rejected, nulls explicit.
@@ -371,3 +400,11 @@ Phase 01 Contract and Transition Design frozen on 2026-10-15 ([Gate G1 review ap
 - Inputs: original v1 preimage + digest.
 - Outputs: per-operation status: `provenAccepted` (returns original acceptedRevision), `provenNotAccepted`, `unknownSuperseded`, or `integrityFailure`.
 - Outbox transition: Legacy Room v1 databases lack original contract version, dispatch history flag, and changed-field mask. Where dispatch provenance or intention history cannot be proven, the record is flagged as `UNKNOWN_SUPERSEDED` for explicit user review; it is never auto-reapplied or auto-rehashed.
+
+### 6.5 Strict Timezone & Native Candidate Status (Phase 02 / Gate G2 Blocked)
+- **Delivered Logic Contracts**: Strict timezone resolver in `:shared` and candidate notification adapters in `:androidApp` and `:desktopApp`.
+- **Automated Verification**: Reported test runs pass 147 tests across `:shared:jvmTest` (115 tests, including 7 timezone vectors) and `:desktopApp:test` (32 tests, including 4 Linux D-Bus tests), executed with `--dependency-verification=off`.
+- **Gate G2 Blocked**: Physical native delivery is formally blocked on missing implementation and workstation prerequisites:
+  1. Android: Android SDK and connected device/emulator absent (scheduled for Phase 08).
+  2. Linux: Active desktop notification daemon absent on user D-Bus session (scheduled for Phase 09).
+  3. Windows: Native WinRT/COM toast bridge is unimplemented (currently an unavailable stub), and Windows host/MSI tooling environment is absent (scheduled for Phase 09).
