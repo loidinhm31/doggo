@@ -3,6 +3,52 @@
 All notable changes to the Doggo project are documented in this file, organized chronologically by implementation phase.
 
 ---
+## [Phase 03] - 2026-10-15: Hub v2 Admission, Fencing and Migration (Gate G3 Backend Logic & Tests Delivered; Staging Gate Pending)
+
+### Added
+- Sibling backend models and migration state machine in `glean-hub-sync` (`models/strict_upgrade.rs`):
+  - Canonical schema definitions and JSON builders (`canonical_v1_schema_json`, `canonical_v2_schema_json`) matching fingerprints `3361a80f...` (v1) and `5f539551...` (v2).
+  - 8-stage migration transition state machine (`MigrationState`: `ready-v1`, `fencing`, `transforming`, `validating`, `publishing`, `ready-v2`, `operatorRequired`, `rolledBack`).
+  - DTOs for contract queries (`StrictContractInfo`), upgrade requests (`StrictUpgradeRequest`), migration records (`MigrationRecord`), coordination documents (`AppCoordinationDoc`, `PermitEntry`), and legacy receipt reconciliation (`LegacyReceiptItem`, `LegacyReceiptsRequest`, `LegacyReceiptStatus`, `LegacyReceiptResult`, `LegacyReceiptsResponse`).
+- Durable permit admission and exclusive fencing service in `glean-hub-sync` (`services/permit_service.rs`):
+  - `PermitService` managing coordination records in `_coordination` (`permit:<appId>`).
+  - Enforces bounded concurrency ceiling `MAX_CONCURRENT_PERMITS = 1000` via atomic CAS filter `permitCount: { $lt: 1000 }` with `$inc: { permitCount: 1 }`.
+  - Permit release verifies `activePermits.<permit_id>: { $exists: true }` before decrementing `permitCount: -1`.
+  - Exclusive migration fence acquisition (`fenced: true`, `fenceOwner`, incremented `fenceGeneration`) and active permit draining.
+- In-place strict upgrade engine in `glean-hub-sync` (`services/strict_upgrade_service.rs`):
+  - `StrictUpgradeService` orchestrating contract inspection, dry-run preflights, exclusive fencing, and permit draining.
+  - Chunked in-place MongoDB document transformation (`BATCH_SIZE = 500`) setting 12 missing v2 fields to default/null on live rows while preserving `{}` tombstones.
+  - Idempotent `$exists: false` matching and resumption passing prior recorded `recordsTransformed` and `tombstonesPreserved` (with exact mid-batch interruption accounting remaining an open item awaiting revalidation).
+  - Schema publication via CAS in `_schemas` using majority journaled write concern, followed by exclusive fence release.
+- Legacy receipt reconciliation bridge in `glean-hub-sync` (`services/strong_sync_service.rs`):
+  - Dedicated reconciliation route for v1 client receipts (`POST /api/v1/sync/:app_id/strong/legacy-receipts`).
+  - Bounded batch limit `<= 100` receipts per request (`MAX_BATCH_SIZE`).
+  - Protocol validation enforcing `request.protocol == "strict-v1"` (rejecting mismatched protocols with HTTP 426 `protocolUnsupported`).
+  - SHA-256 v1 digest recomputation and 4-way receipt status classification (`provenAccepted`, `provenNotAccepted`, `unknownSuperseded`, `integrityFailure`).
+  - Durable replay confirmation writes (`confirmationNonce`) for matching `lastOp` without mutating task payload data.
+- App-scoped administration routes and authorization middleware in `glean-hub-sync` (`routes/strict_upgrades.rs`, `middleware/dual_auth.rs`):
+  - `GET /api/v1/apps/:app_id/strict-contract`, `POST /api/v1/apps/:app_id/strict-upgrades`, `GET /api/v1/apps/:app_id/strict-upgrades/:migration_id`.
+  - `app_scoped_admin_middleware` requiring both `is_admin: true` and target app present in `claims.apps` (returning HTTP 401 for non-admin, HTTP 403 for ungranted app).
+- Integration test suite in `glean-hub-sync` (`services/strict_upgrade_tests.rs`):
+  - 11 unit/contract tests covering app-scoped admin authorization, 401/403 status mappings, route parameter extraction, schema validation, error response codes, request parsing, and coordination document serialization.
+- Sibling operator documentation in `glean-hub` (`docs/doggo-strict-sync.md`):
+  - Strict-v2 upgrade invariants, management endpoints, multi-node coordination runbook, and migration procedures.
+
+### Changed
+- `glean-hub-sync/src/services/strong_sync_service.rs`: Integrated durable permit acquisition and release gates across all strict data access endpoints (`bootstrap`, `push`, `pull`, `legacy-receipts`), rejecting client ingress with HTTP 503 `migrationInProgress` when app is fenced.
+- `glean-hub-sync/src/services/app_service.rs`: Extended schema validation to support `strict-v2` 16-column specifications and mode-specific column rules.
+- `docs/system-architecture.md`: Updated Section 6 to record Phase 03 delivered logic, documented management endpoints, bounded coordination permits, in-place migration engine, legacy receipt reconciliation, and Invariants 33–36.
+- `docs/hub-schema-integration.md`: Updated status to Phase 03 Delivered, detailed upgrade and legacy receipt wire contracts, bounded coordination permit gate, error mappings, and release gating criteria.
+- `docs/codebase-summary.md`: Updated Repomix metrics based on fresh compaction (340 files, 656,907 tokens), documented delivered Phase 03 backend architecture and modules, and added Invariants 38–41.
+
+### Verification and Gate G3 Status
+- Backend test runner passes 54 tests in Rust `glean-hub-sync` (1 ignored: `test_strong_sync_live_mongo_acceptance_gate` due to missing `MONGO_TEST_URI`), clippy clean (0 compiler warnings).
+- Vector runner passes 23/23 checks (`scripts/strict-v2-vector-runner.mjs`).
+- Live smoke offline fixture self-test passes 18/18 checks (`node scripts/hub-live-smoke.mjs --fixture-test`).
+- Shared Kotlin Multiplatform JVM test suites pass 116 tests (`./gradlew :shared:jvmTest --dependency-verification=off`).
+- Production admission remains on hold: Phase 03 backend contracts and logic are delivered with passing unit/contract checks; (1) Gate G3 live multi-instance replica-set acceptance is unexecuted pending staging testbed, (2) coordination-document compatibility/backfill for documents missing `permitCount` requires live verification, and (3) exact cumulative accounting across mid-batch crash interruptions requires formal revalidation.
+
+---
 ## [Phase 02] - 2026-10-15: Native Delivery & Strict DST Resolution (Gate G2 Blocked on Host Prerequisites)
 
 ### Added

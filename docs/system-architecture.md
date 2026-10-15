@@ -363,11 +363,15 @@ The Windows `META-INF/services/dev.doggo.desktop.CredentialVaultProvider` descri
 30. **Decoupled Mobile Notification & Timing Permissions**: Notification posting authorization (`POST_NOTIFICATIONS`) and exact-alarm scheduling permission (`SCHEDULE_EXACT_ALARM`) are checked independently, preventing silent alarm scheduling failures or unauthorized notifications.
 31. **Explicit Desktop Notification Unavailability**: Desktop Linux D-Bus and Windows toast adapters return explicit `Unavailable` statuses when host daemons (`ServiceUnknown`) or native bridges (WinRT/COM) are not present, preventing unhandled runtime exceptions or false-positive success reporting.
 32. **Fail-Closed DST Ambiguity Resolution**: Timezone and DST calculations reject ambiguous overlaps and non-existent gaps with explicit exceptions rather than silently shifting or rounding to erroneous local instants.
+33. **Bounded Coordination Permits & Atomic CAS Gate**: Strict sync data operations acquire an identifiable permit in `_coordination` (`permit:<appId>`), enforcing a strict 1,000 active permit ceiling (`MAX_CONCURRENT_PERMITS`) via atomic CAS update checking `fenced: false` and `permitCount: { $lt: 1000 }` with `$inc: { permitCount: 1 }`. Release operations verify the permit ID exists in `activePermits` before decrementing.
+34. **App-Scoped Admin Authorization for Schema Upgrades**: Strict upgrade administration endpoints (`/api/v1/apps/:app_id/strict-contract`, `/api/v1/apps/:app_id/strict-upgrades*`) require JWT claims with both `is_admin: true` and the target `app_id` present in `claims.apps`. Non-admin requests receive HTTP 401; admin tokens lacking the explicit target app grant receive HTTP 403.
+35. **Exclusive Fence Draining & In-Place Strict Migration**: Schema upgrades claim an exclusive fence (`fenced: true`, `fenceOwner`, incremented `fenceGeneration`) in `_coordination`, immediately rejecting client ingress with HTTP 503 `migrationInProgress`. Admitted permits drain before in-place data transformation begins in batches (`BATCH_SIZE = 500`) with idempotent `$exists: false` matching; resumption passes prior recorded counts, though exact mid-batch interruption accounting remains an open correctness item awaiting formal revalidation.
+36. **Strict-v1 Legacy Receipt Replay Verification**: Legacy receipt reconciliation (`POST /api/v1/sync/:app_id/strong/legacy-receipts`) enforces bounded batches (`<= 100`) and strictly validates `request.protocol == "strict-v1"`. Matching receipts execute durable replay confirmation nonces without mutating payload records or applying legacy mutations.
 
 
-## 6. Deadlines, Reminders & Strict Upgrade Design (Phases 01–02 Status)
+## 6. Deadlines, Reminders & Strict Upgrade Design (Phases 01–03 Status)
 
-Phase 01 Contract and Transition Design frozen on 2026-10-15 (Gate G1 approved). Phase 02 logic contracts and platform candidate adapters delivered on 2026-10-15; Gate G2 physical native delivery formally recorded as BLOCKED pending missing host prerequisites (Android SDK/device, active Linux notification daemon, Windows host runtime). Subsequent implementation phases 03–12 remain pending.
+Phase 01 Contract and Transition Design frozen on 2026-10-15 (Gate G1 approved). Phase 02 logic contracts and platform candidate adapters delivered on 2026-10-15 (Gate G2 physical native delivery formally recorded as BLOCKED pending missing host prerequisites). Phase 03 backend contracts, admission guards, and in-place migration engine delivered on 2026-10-15 with passing unit/contract checks; production admission remains on hold with Gate G3 live multi-instance replica-set acceptance unexecuted pending staging testbed, coordination-document compatibility/backfill for documents missing `permitCount` requiring live verification, and exact cumulative accounting across mid-batch crash interruption requiring formal revalidation.
 
 ### 6.1 Wire Schema & Fingerprints
 - Target sync protocol: `strict-v2`. Full replacement payloads, absent fields rejected, nulls explicit.
@@ -387,20 +391,23 @@ Phase 01 Contract and Transition Design frozen on 2026-10-15 (Gate G1 approved).
 - Validation rules: Wire input with `reminderCount == 1` MUST have `reminderIntervalMinutes: null`; wire input with non-null interval is rejected (`invalidRecord`), never silently normalized. Repeating count 2..10 requires interval >= 15m. Last scheduled occurrence cannot exceed anchor instant.
 - Reference vectors: `integration/glean-hub/strict-v2-vectors.json` stores 9 valid vectors with explicit preimage hex and SHA-256 hashes, and 11 boundary/overflow rejection vectors. Validated across Kotlin (`dev.doggo.shared.contract.StrictSyncV2Digest`), Rust (`glean_hub_sync::models::strong_sync_v2`), and Node (`scripts/strict-v2-vector-runner.mjs`) per Phase 01 QA report ([QA report](../plans/reports/qa-261015-0938-phase-01-freeze-temporal-model.md)).
 
-### 6.3 Management API & Fencing Contract [Planned Phase 03]
-- Endpoints:
-  - `GET /api/v1/apps/:app_id/strict-contract`: returns syncMode, active epoch, and schema fingerprint.
-  - `POST /api/v1/apps/:app_id/strict-upgrades`: initiates migration with body `{ migrationId, expectedVersion, expectedSchemaFingerprint, expectedEpoch, targetVersion, targetSchemaFingerprint }`.
-  - `GET /api/v1/apps/:app_id/strict-upgrades/:migrationId`: queries migration status.
-- Authorization: Requires global admin role AND explicit app-scope authorization.
-- Fencing: Readers AND writers acquire durable server-enforced app permits. Fence acquisition atomically blocks new permits; migration begins only after admitted requests definitively drain. Orphan permits require proving complete operations on supported Mongo topology before clearing; lease expiry alone never clears permits.
+### 6.3 Management API, Fencing & In-Place Migration (Phase 03 Delivered Logic)
+- **Delivered Endpoints**:
+  - `GET /api/v1/apps/:app_id/strict-contract`: returns `appId`, `syncMode`, `epoch`, canonical `schemaFingerprint`, `tables`, and `schema`. Protected by `app_scoped_admin_middleware`.
+  - `POST /api/v1/apps/:app_id/strict-upgrades`: initiates migration with body `{ migrationId, expectedVersion, expectedSchemaFingerprint, expectedEpoch, targetVersion, targetSchemaFingerprint, dryRun }`. Protected by `app_scoped_admin_middleware`. Validates schema fingerprints and active epoch. Acquires exclusive fence in `_coordination`, drains in-flight reader/writer permits, transforms documents in `app_<appId>` in-place in batches (`BATCH_SIZE = 500`), validates all records, publishes target schema via CAS to `_schemas` with majority journaled write concern, and releases fence. Supports dry-run preflight and preactivation rollback. Resumption mechanism passes prior recorded transformed and tombstone counts, though exact cumulative counts across mid-batch crash interruptions remain unverified.
+  - `GET /api/v1/apps/:app_id/strict-upgrades/:migrationId`: queries migration transition state (`ready-v1` -> `fencing` -> `transforming` -> `validating` -> `publishing` -> `ready-v2`, `operatorRequired`, or `rolledBack`).
+- **Authorization**: Requires JWT token with `is_admin: true` AND target app present in `claims.apps` via `app_scoped_admin_middleware`. Non-admin requests receive HTTP 401; admin without app grant receives HTTP 403.
+- **Coordination & Fencing**: Collection `_coordination`, document `permit:<app_id>`. Readers and writers acquire durable permits with bounded concurrency (`MAX_CONCURRENT_PERMITS = 1000`) enforced via atomic CAS `permitCount: { $lt: 1000 }` with `$inc: { permitCount: 1 }`. Release checks `activePermits.<permit_id>: { $exists: true }` and decrements `permitCount: -1`. Exclusive fence sets `fenced: true`, `fenceOwner`, incremented `fenceGeneration`. New permits fail fast with HTTP 503 `migrationInProgress`.
 
-### 6.4 Legacy-Receipt Reconciliation & Outbox Replay [Planned Phase 03 / Phase 06]
-- Endpoint: `POST /api/v1/sync/:app_id/strong/legacy-receipts`: app-scoped and user-scoped dual-auth, bounded batch size <= 100.
-- Inputs: original v1 preimage + digest.
-- Outputs: per-operation status: `provenAccepted` (returns original acceptedRevision), `provenNotAccepted`, `unknownSuperseded`, or `integrityFailure`.
-- Outbox transition: Legacy Room v1 databases lack original contract version, dispatch history flag, and changed-field mask. Where dispatch provenance or intention history cannot be proven, the record is flagged as `UNKNOWN_SUPERSEDED` for explicit user review; it is never auto-reapplied or auto-rehashed.
-
+### 6.4 Legacy-Receipt Reconciliation & Outbox Replay (Phase 03 Backend Delivered; Phase 06 Client Scheduled)
+- **Delivered Endpoint**: `POST /api/v1/sync/:app_id/strong/legacy-receipts`: app-scoped and user-scoped dual-auth (`Authorization: Bearer <jwt>`, `X-API-Key: <key>`, `X-App-Id: <appId>`), bounded batch size `<= 100` (`MAX_BATCH_SIZE`).
+- **Protocol Validation**: Strictly requires `request.protocol == "strict-v1"`; non-v1 requests are rejected with HTTP 426 `protocolUnsupported`.
+- **Verification Logic**: Recomputes original v1 preimage and SHA-256 digest against submitted payload. Classifies operations into 4 statuses:
+  - `provenAccepted`: Matches current row's `lastOp` (`opId` and `digest`). Performs durable conditional update writing fresh `confirmationNonce` (`matched_count == 1`). Returns `acceptedRevision`.
+  - `provenNotAccepted`: Current revision matches expected revision (operation was never applied). Returns current state.
+  - `unknownSuperseded`: Current revision differs from expected revision (operation was superseded by later mutation). Returns current state for manual review.
+  - `integrityFailure`: Invalid UUIDs, unknown table, non-matching digest, or malformed data payload.
+- **Outbox Transition (Phase 06 Client Contract)**: Legacy Room v1 databases lack original contract version, dispatch history flag, and changed-field mask. Where dispatch provenance or intention history cannot be proven, the record is flagged as `UNKNOWN_SUPERSEDED` for explicit user review; it is never auto-reapplied or auto-rehashed.
 ### 6.5 Strict Timezone & Native Candidate Status (Phase 02 / Gate G2 Blocked)
 - **Delivered Logic Contracts**: Strict timezone resolver in `:shared` and candidate notification adapters in `:androidApp` and `:desktopApp`.
 - **Automated Verification**: Reported test runs pass 147 tests across `:shared:jvmTest` (115 tests, including 7 timezone vectors) and `:desktopApp:test` (32 tests, including 4 Linux D-Bus tests), executed with `--dependency-verification=off`.
@@ -408,3 +415,8 @@ Phase 01 Contract and Transition Design frozen on 2026-10-15 (Gate G1 approved).
   1. Android: Android SDK and connected device/emulator absent (scheduled for Phase 08).
   2. Linux: Active desktop notification daemon absent on user D-Bus session (scheduled for Phase 09).
   3. Windows: Native WinRT/COM toast bridge is unimplemented (currently an unavailable stub), and Windows host/MSI tooling environment is absent (scheduled for Phase 09).
+
+### 6.6 Hub Versioned Admission & Migration Status (Phase 03 / Gate G3 Staging Hold)
+- **Delivered Logic Contracts**: Strict upgrade models, coordination permit service, in-place migration engine, app-scoped admin authorization middleware, and legacy receipt reconciliation routes in `glean-hub-sync`.
+- **Automated Verification**: Reported test runs pass 54 tests in Rust `glean-hub-sync` (1 ignored: `test_strong_sync_live_mongo_acceptance_gate` due to missing `MONGO_TEST_URI`), 23/23 vector runner checks (`scripts/strict-v2-vector-runner.mjs`), 18/18 live smoke offline fixture checks (`hub-live-smoke.mjs --fixture-test`), and 116 shared JVM tests (`:shared:jvmTest --dependency-verification=off`).
+- **Gate G3 Staging Hold**: Phase 03 backend contracts and logic are delivered with passing unit/contract checks. Production admission remains on hold: (1) Gate G3 live multi-instance replica-set acceptance is unexecuted pending staging testbed, (2) coordination-document compatibility/backfill for documents missing `permitCount` requires live verification, and (3) exact cumulative accounting across mid-batch crash interruption requires formal revalidation.

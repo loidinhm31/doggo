@@ -1,7 +1,7 @@
 # Codebase Summary
 
 Generated on: 2026-10-15
-Based on Repomix compaction snapshot: `repomix-output.xml` (338 files packed, 5 excluded for security check, 635,941 tokens, 2,728,175 chars, dated 2026-10-15)
+Based on Repomix compaction snapshot: `repomix-output.xml` (340 files packed, 5 excluded for security check, 656,907 tokens, 2,813,952 chars, dated 2026-10-15)
 ---
 
 ## 1. Repository Overview
@@ -406,14 +406,35 @@ Phase 10 implementation is recorded at **100% (2026-10-14)**. The evidence summa
 | `linux-notification-adapter-test.kt` | Capabilities query, missing D-Bus daemon graceful unavailability, missing session bus handling, environment probe. | **RECORDED PASSED** (Recorded in Phase 02 QA report, 4/4 tests under `--dependency-verification=off`) |
 | `windows-notification-adapter-test.kt` | XML attribute/entity escaping, toast XML construction, explicit bridge unavailability stub test. | **RECORDED PASSED** (Recorded in Phase 02 code review, 3/3 tests under `--dependency-verification=off`; candidate stub only) |
 
+### 2.12 Glean Hub Strict Backend Modules & Services (`glean-hub-sync/`)
+
+| Component File | Primary Types & Functions | Architectural Role |
+|---|---|---|
+| `models/strict_upgrade.rs` | `canonical_v1_schema_json`, `canonical_v2_schema_json`, `compute_schema_fingerprint`, `MigrationState`, `StrictContractInfo`, `StrictUpgradeRequest`, `StrictUpgradeResponse`, `AppCoordinationDoc`, `PermitEntry`, `LegacyReceiptItem`, `LegacyReceiptResult` | Strict schema constants (v1 `3361a80f...`, v2 `5f539551...`), 8-stage migration state machine, and wire DTOs. |
+| `services/permit_service.rs` | `PermitService`, `acquire_permit`, `release_permit`, `acquire_fence`, `release_fence`, `drain_permits` | Durable permit admission in `_coordination` (`permit:<appId>`), enforcing `MAX_CONCURRENT_PERMITS = 1000` via atomic CAS, existence-checked release, and exclusive migration fence draining. |
+| `services/strict_upgrade_service.rs` | `StrictUpgradeService`, `get_contract_info`, `execute_upgrade`, `get_migration_status` | Orchestrates upgrade lifecycle: dry-run preflight, exclusive fence, permit draining, chunked in-place transformation (`BATCH_SIZE = 500`), validation, CAS schema publication with majority journaled write concern, and resumption mechanism passing prior counts (exact cumulative counts across mid-batch crash interruptions remain unverified). |
+| `services/strong_sync_service.rs` | `StrongSyncService`, `legacy_receipts`, `reconcile_single_legacy_receipt` | Dual-auth legacy receipt reconciliation bridge (`<= 100` batch, strict-v1 protocol validation, v1 SHA-256 digest recomputation, durable `confirmationNonce` write without payload mutation) and permit gate integration across data routes. |
+| `routes/strict_upgrades.rs` | `strict_upgrades_routes`, `get_strict_contract`, `post_strict_upgrade`, `get_strict_upgrade_status` | Axum administration router mounted under `/apps/:app_id/*` (served at `/api/v1/apps/:app_id/*`), protected by `app_scoped_admin_middleware`. |
+| `middleware/dual_auth.rs` | `app_scoped_admin_middleware` | App-scoped authorization middleware requiring `is_admin: true` and `claims.apps.contains(app_id)` (HTTP 401 for non-admin, HTTP 403 for missing app scope). |
+
+| Test Suite File | Scope & Tested Invariants | Status |
+|---|---|---|
+| `services/strict_upgrade_tests.rs` | 11 unit/contract tests: app-scoped admin middleware authorization, non-admin 401, ungranted app 403, path parameter extraction, schema validation, error HTTP mappings, request DTO parsing, and coordination document serialization. | **RECORDED PASSED** (Recorded in Phase 03 QA report; 11/11 tests pass in `cargo test --locked`) |
+
 ---
 
 ## 3. Repomix Compaction Metrics (Dated Generation Snapshot: 2026-10-15)
 
 - **Compaction Artifact:** Generated on 2026-10-15 at `repomix-output.xml` in repository root.
-- **Total Files Packed:** 338 files
-- **Total Character Count:** 2,728,175 characters
-- **Total Token Count:** 635,941 tokens
+- **Total Files Packed:** 340 files
+- **Total Character Count:** 2,813,952 characters
+- **Total Token Count:** 656,907 tokens
+- **Top 5 Files by Token Count:**
+  1. `docs/codebase-summary.md` (14,962 tokens, 64,339 chars, 2.3%)
+  2. `docs/project-roadmap.md` (14,266 tokens, 59,798 chars, 2.2%)
+  3. `docs/project-overview-pdr.md` (11,783 tokens, 51,327 chars, 1.8%)
+  4. `integration/glean-hub/strict-v2-vectors.json` (10,932 tokens, 32,971 chars, 1.7%)
+  5. `docs/system-architecture.md` (9,485 tokens, 40,946 chars, 1.4%)
 - **Security Check:** Repomix security scanner flagged 5 suspicious files that were excluded from the compaction output by default filter heuristics: `docs/security-and-recovery.md`, `plans/reports/code-reviewer-261014-1624-phase-08-release-operations-cycle2.md`, `plans/reports/code-reviewer-261014-1638-phase-08-release-operations-cycle3.md`, `plans/reports/docs-manager-261014-1643-phase-08-docs-verification.md`, and `shared/src/commonTest/kotlin/dev/doggo/shared/contract/endpoint-policy-test.kt`. These exclusions represent heuristic scanner flags and are not an affirmative clean security adjudication of those files.
 - **Snapshot Scope:** These counts describe a single 2026-10-15 Repomix generation.
 ---
@@ -467,3 +488,7 @@ Phase 10 implementation is recorded at **100% (2026-10-14)**. The evidence summa
 35. **Non-Exported Android Alarm Receiver**: `DoggoAlarmReceiver` declares `android:exported="false"` in `AndroidManifest.xml` and validates `taskId`, `scheduleToken`, `notificationId`, and `title` before dispatching offline notifications via `AndroidNotificationAdapter`.
 36. **Decoupled Mobile Reminder Capabilities**: `AndroidReminderCapabilitiesChecker` decouples runtime `POST_NOTIFICATIONS` permission from `SCHEDULE_EXACT_ALARM` exact alarm permission (`AlarmManager.canScheduleExactAlarms()` on API 31+).
 37. **Safe Desktop Notification Absence & Windows Stub**: `DbusLinuxNotificationAdapter` maps `DBusExecutionException` / `ServiceUnknown` to `LinuxNotificationStatus.Unavailable` without crashing; `WindowsToastBridge` explicitly returns `isAvailable() = false` and `WindowsNotificationStatus.Unavailable` pending native WinRT/COM implementation and Windows testbed in Phase 09.
+38. **Bounded Coordination Permits & Atomic CAS Gate**: Strict sync data operations acquire an identifiable permit in `_coordination` (`permit:<appId>`), enforcing a strict 1,000 active permit ceiling (`MAX_CONCURRENT_PERMITS`) via atomic CAS update checking `fenced: false` and `permitCount: { $lt: 1000 }` with `$inc: { permitCount: 1 }`. Release operations verify the permit ID exists in `activePermits` before decrementing.
+39. **In-Place Strict Migration State Machine & Resumption**: Strict upgrade transitions through an 8-state machine (`ready-v1` -> `fencing` -> `transforming` -> `validating` -> `publishing` -> `ready-v2`, `operatorRequired`, or `rolledBack`) under an exclusive coordination fence. Resuming interrupted migrations skips the initial purity preflight, passes prior recorded counts, and updates `_schemas` via CAS with majority journaled write concern; exact cumulative accounting across mid-batch crash interruptions remains an open correctness item awaiting formal revalidation.
+40. **Strict-v1 Protocol Validation on Legacy Receipts**: Legacy receipt reconciliation (`POST /api/v1/sync/:app_id/strong/legacy-receipts`) enforces bounded batches (`<= 100`) and strictly validates `request.protocol == "strict-v1"`. Matching receipts execute durable replay confirmation nonces without mutating payload records or applying legacy mutations.
+41. **Phase 03 Hub Versioned Admission & Staging Gate Status**: Phase 03 backend contracts, admission guards, and in-place migration engine are delivered in `glean-hub-sync` with passing unit/contract checks. Production admission remains on hold: (1) Gate G3 live multi-instance Mongo replica-set acceptance is unexecuted pending staging testbed, (2) coordination-document compatibility/backfill for documents missing `permitCount` requires live verification, and (3) exact cumulative accounting across mid-batch crash interruption requires formal revalidation.

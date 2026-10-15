@@ -1,11 +1,11 @@
 # Doggo Project Roadmap
 
-**Current Status:** In Progress — foundational strict-v1 multiplatform delivered; Phase 01 DONE (Gate G1 passed); Phase 02 logic/contracts DELIVERED (Gate G2 physical delivery BLOCKED on host prerequisites)
+**Current Status:** In Progress — foundational strict-v1 multiplatform delivered; Phase 01 DONE (Gate G1 passed); Phase 02 logic/contracts DELIVERED (Gate G2 BLOCKED); Phase 03 DELIVERED (Contracts/Logic/Tests; Gate G3 live cluster execution ON HOLD)
 **Last Updated:** 2026-10-15
 **Target Plan:** [plans/261015-0752-task-deadlines-reminders-strict-upgrades/plan.md](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/plan.md) (Task Deadlines, Reminders & Strict Upgrades)
 **Foundational Plan:** [plans/261013-1540-doggo-glean-hub-reuse/plan.md](../plans/261013-1540-doggo-glean-hub-reuse/plan.md) (Strict-v1 Hub Reuse Baseline — 100% Implementation Delivered)
 **Historical Plan:** [plans/261013-0914-doggo-compose-todos/plan.md](../plans/261013-0914-doggo-compose-todos/plan.md) (Superseded)
-**Overall Progress:** Foundational baseline: 100% planned-effort implementation delivered (148h / 148h allocated; technical and operator acceptance gates remain open). Evolution plan (Deadlines & Reminders): 13.6% planned-effort progress (32h / 236h, Phase 01 DONE, Phase 02 logic/contracts DELIVERED, Gate G2 physical delivery BLOCKED; next pending: Phase 03 Hub migration & Phase 05 Shared Room migration).
+**Overall Progress:** Foundational baseline: 100% planned-effort implementation delivered (148h / 148h allocated; technical and operator acceptance gates remain open). Evolution plan (Deadlines & Reminders): 27.1% credited planned-effort delivery roll-up (64h / 236h, Phase 01 DONE, Phase 02 logic/contracts DELIVERED, Phase 03 Contracts/Logic/Tests DELIVERED; Gate G2 physical delivery BLOCKED, Gate G3 live cluster execution ON HOLD; next pending: Phase 04 Hub admin UI & Phase 05 Shared Room migration).
 
 ---
 
@@ -51,7 +51,7 @@ Phase 01 of the Task Deadlines, Reminders, and Strict-Contract Upgrades plan (`p
 |:---|:---|:---:|---:|:---:|:---:|---:|
 | **01** | [Freeze temporal model and strict transition](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-01-freeze-contract-and-transition-design.md) | Contract | 16h | **DONE** | 2026-10-15 | 100% (G1 passed) |
 | **02** | [Prove native notifications and strict DST](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-02-prove-native-delivery-and-dst.md) | Native | 16h | **DELIVERED (Contracts/Logic)\*** | 2026-10-15 | Partial (G2 BLOCKED) |
-| **03** | [Hub v2 admission, fencing and migration](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-03-hub-versioned-contract-and-migration.md) | Backend | 32h | Pending | - | 0% |
+| **03** | [Hub v2 admission, fencing and migration](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-03-hub-versioned-contract-and-migration.md) | Backend | 32h | **DELIVERED (Contracts/Logic/Tests)\*\*** | 2026-10-15 | Credited 32h (G3 ON HOLD) |
 | **04** | [Hub admin UI and API-only upgrade script](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-04-hub-admin-ui-and-upgrade-script.md) | Admin/Ops | 12h | Pending | - | 0% |
 | **05** | [Shared model and explicit Room1→2](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-05-shared-model-and-room-migration.md) | Database | 20h | Pending | - | 0% |
 | **06** | [Client version transition and safe replay](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-06-client-version-transition-and-replay.md) | Sync | 24h | Pending | - | 0% |
@@ -61,9 +61,10 @@ Phase 01 of the Task Deadlines, Reminders, and Strict-Contract Upgrades plan (`p
 | **10** | [Shared editor, list and local settings](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-10-compose-deadline-editor-list-and-settings.md) | UI | 20h | Pending | - | 0% |
 | **11** | [Adversarial and platform acceptance](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-11-adversarial-integration-and-platform-acceptance.md) | QA | 20h | Pending | - | 0% |
 | **12** | [Coordinated cutover, recovery and release](../plans/261015-0752-task-deadlines-reminders-strict-upgrades/phase-12-coordinated-cutover-runbook-and-release.md) | Release | 12h | Pending | - | 0% |
-| **Total** | | | **236h** | | | **13.6% credited (32h/236h; G2 BLOCKED)** |
+| **Total** | | | **236h** | | | **27.1% credited (64h/236h; G2 BLOCKED, G3 ON HOLD)** |
 
 *\*Phase 02 delivered strict timezone/DST contracts and platform actuals (115/115 passing JVM tests across 6 vectors + 1 midnight gap vector; 116 tests in clean rerun), candidate native notification adapters for Android, Linux D-Bus, and Windows WinRT/COM, hardened Android manifest, and repaired Linux dependency lockfile. Gate G2 physical native delivery remains formally BLOCKED due to absent host prerequisites (Android SDK/device, active desktop notification daemon in user session, Windows runtime/MSI tools); physical verification scheduled for Phase 08 (Android) and Phase 09 (Linux/Windows).*
+\*\*Phase 03 implementation delivered for strict-v2 admission, coordination permit gate, in-place migration engine, legacy receipts route, and app-scoped admin auth (211 passing tests/checks across Hub Rust, Node vectors, fixture smoke, and KMP JVM under --dependency-verification=off; Clippy clean 0 warnings). Technical review scored 8.0/10 ADMISSION ON HOLD with 3 open code findings (permit release decrement filter, permitCount backfill, and batch/checkpoint atomicity). Gate G3 physical multi-instance Mongo cluster execution remains formally ON HOLD pending live replica set testbed before production admission.
 
 ---
 
@@ -179,9 +180,32 @@ All phase allocations are marked delivered (148h/148h planned-effort roll-up, no
     - Acceptance Specifications: Updated `docs/android-acceptance.md`, `docs/linux-acceptance.md`, and `docs/windows-acceptance.md` distinguishing static inspection from executed tests.
     - Unit & Integration Test Suites: `shared/src/commonTest/kotlin/dev/doggo/shared/contract/strict-timezone-resolver-test.kt` (7 test vectors passing: NY spring gap, fall overlap, unambiguous, 23h, 25h, validation, and midnight gap), `desktopApp/src/linuxTest/kotlin/dev/doggo/desktop/linux/linux-notification-adapter-test.kt` (4 tests passing), `desktopApp/src/windowsTest/kotlin/dev/doggo/desktop/windows/windows-notification-adapter-test.kt` (safe unavailability test source-inspected/added; unexecuted on Linux due to target isolation).
   - *Note on Gate G2:* 147/147 Gradle tests pass under `--dependency-verification=off` (115 :shared:jvmTest + 32 :desktopApp:test; 116 JVM tests on clean rerun), 18/18 fixture smoke assertions pass, and 6/6 source security checks pass. Code review scored 7.5/10 APPROVED. Physical native delivery across all three target OSs remains formally BLOCKED due to absent host prerequisites (Android SDK/device, active Linux desktop notification daemon, Windows runtime). Gate G2 physical verification is scheduled for Phase 08 (Android testbed) and Phase 09 (Linux/Windows testbeds). Gate G2 continues to block broad Compose UI (Phase 10) and final native adapters. Downstream Phase 03 (Hub migration) and Phase 05 (Shared Room migration) proceed independently under Gate G1 clearance.
+
+- **Phase 03 (DELIVERED 2026-10-15; Gate G3 physical multi-instance Mongo cluster execution ON HOLD pending live replica set testbed):** Hub v2 admission, fencing, and data-preserving in-place migration (32h planned-effort credited, contracts/logic/tests delivered, live cluster execution pending).
+  - **Key Deliverables:**
+    - Strict-v2 Admission & Guarding: `glean-hub-plugin/glean-hub-sync/src/routes/strong_sync.rs`, `src/services/strong_sync_service.rs`, `src/models/strong_sync_v2.rs`, `src/middleware/sync_mode_guard.rs` (exact v1/v2 schema validation enforcing all 16 ordered columns: 4 original columns `id`, `title`, `completed`, `createdAt` plus 12 newly added temporal/reminder fields `deadlineDate` through `scheduleToken`, canonical schema fingerprints `3361a80f...` and `5f539551...`, typed version-aware request/digest processing).
+    - Coordination Permit Gate: `src/services/permit_service.rs` (durable app permit coordination, atomic `permitCount: { $lt: 1000 }` CAS admission bound, request fencing, and quiescence drain).
+    - In-Place Migration Engine: `src/services/strict_upgrade_service.rs`, `src/models/strict_upgrade.rs`, `src/routes/strict_upgrades.rs` (chunked transform with `BATCH_SIZE = 500` and incremental `checkpointRowId`, invariant validation, majority+journal `_schemas` CAS publication, crash-resumption accounting preserving cumulative counts).
+    - Legacy Receipts Route: `src/routes/strong_sync.rs`, `src/services/strong_sync_service.rs` (`legacy_receipts_inner` with `protocol == "strict-v1"` validation, deterministic v1 digest recomputation, and journaled CAS confirmation).
+    - App-Scoped Admin Authentication: `src/middleware/dual_auth.rs` (app admin middleware verifying target app-scoped admin authorization or global admin grant).
+    - Backend Protocol Runbook: `glean-hub/docs/doggo-strict-sync.md`.
+    - Unit & Integration Test Suites: Rust unit/route tests (54/54 executed PASS, 1 ignored live Mongo test), Doggo vector runner (23/23 checks PASS), fixture smoke (18/18 PASS), and KMP JVM regression (116/116 PASS under `--dependency-verification=off`).
+  - *Note on Gate G3 & Technical Acceptance:* QA validation verified 211 passing tests/checks, 0 failures, and 1 ignored test; Clippy reported 0 warnings. Code review scored 8.0/10 with status **ADMISSION ON HOLD (NOT APPROVED FOR PRODUCTION)** due to 3 open code findings (permit release decrement filter, permitCount backfill, batch/checkpoint atomicity) and unexecuted Gate G3 live cluster tests. Gate G3 physical multi-instance Mongo cluster execution (fencing/drain races, crash/resume, publish-response loss/replay, physical collection & protected-field preservation) remains formally ON HOLD pending live replica set testbed.
 ---
 
 ## 4. Changelog
+### [Phase 03] — 2026-10-15: Hub v2 Admission, Fencing, and In-Place Migration (Plan 261015-0752)
+#### Completed
+- **Phase 03 Hub v2 Admission, Coordination Permit Gate & Migration (Contracts/Logic/Tests Delivered)**:
+  - Implemented strict-v2 admission and schema validation enforcing all 16 ordered columns (4 original columns `id`, `title`, `completed`, `createdAt` plus 12 added temporal/reminder fields `deadlineDate` through `scheduleToken`) and verifying canonical schema fingerprints (`3361a80f...` and `5f539551...`) across Rust Hub backend and integration test runners.
+  - Implemented coordination permit gate in `permit_service.rs` with atomic `permitCount: { $lt: 1000 }` CAS admission bound, request fencing, and quiescence drain.
+  - Implemented in-place migration engine in `strict_upgrade_service.rs` with chunked transformation (`BATCH_SIZE = 500`), incremental `checkpointRowId` persistence, cumulative resumption accounting (`prior_transformed_count` and `preflight_tombstone_count`), majority+journal `_schemas` CAS publication, and invariant verification.
+  - Implemented legacy receipts reconciliation route in `routes/strong_sync.rs` and `StrongSyncService::legacy_receipts_inner` enforcing `protocol == "strict-v1"` validation, deterministic v1 digest recomputation, and journaled CAS confirmation without modifying v2 rows.
+  - Implemented app-scoped admin authentication middleware in `dual_auth.rs` verifying target app-scoped admin authorization or global admin grant.
+  - Validated with 211 passing tests/checks across both repositories (54/54 executed Rust tests with 1 ignored live-Mongo test, 23/23 Node vector and fingerprint checks, 18/18 offline Hub fixture smoke checks, 116/116 KMP JVM tests under `--dependency-verification=off`, and 6/6 static Android security checks). Rust compiler linter clean (0 warnings via `cargo clippy --locked --all-targets`).
+  - Code review completed with score 8.0/10 and status **ADMISSION ON HOLD (NOT APPROVED FOR PRODUCTION)** due to 3 open code findings (permit release decrement filter on duplicate release, permitCount backfill for pre-existing coordination documents, batch mutation vs checkpoint persistence atomicity) and unexecuted live multi-instance cluster tests.
+  - Gate G3 physical multi-instance Mongo cluster execution (fencing/drain races, crash/resume, publish-response loss/replay, physical collection & protected-field preservation) formally recorded as ON HOLD pending live replica set testbed. Phase 04 (Hub admin UI & script) and Phase 05 (Shared Room migration) proceed independently on contract foundations.
+
 ### [Phase 02] — 2026-10-15: Strict Timezone Resolver and Native Notification Adapters (Plan 261015-0752)
 #### Completed
 - **Phase 02 Strict DST & Candidate Native Adapters (Contracts/Logic Delivered)**:
